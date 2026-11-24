@@ -89,7 +89,7 @@ test("Discovery's catalogue lists each category's popular sources, most popular 
   // What the reader has, followed now, once, or privately, is left out.
   follow(b.app, reader, "http://www.theverge.com/rss/index.xml?utm_source=x");
   b.app.db.run("UPDATE sources SET followed = 0 WHERE id = ?", follow(b.app, reader, "https://techcrunch.com/feed/"));
-  const { privateFeedKey } = await import("./feed-keys.ts");
+  const { privateFeedKey } = await import("./source-identity.ts");
   const secret = makeSource(b.app, reader, "Mine", "secret", { isPrivate: true });
   b.app.db.run("UPDATE sources SET feed_key = ? WHERE id = ?", privateFeedKey(b.app, reader.accountId, "https://feeds.bbci.co.uk/news/rss.xml"), secret);
   const mine = (await get(b, reader)).json as CatalogueResponse;

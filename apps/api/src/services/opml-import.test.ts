@@ -389,7 +389,7 @@ test("the plan's limit is checked before each follow: what fits is followed, the
 test("a feed already followed is recognised at the limit, and the plan's room is not spent on it", async (t) => {
   const { app, p } = hostedSetup(t);
   fill(app, p, 100);
-  const again = "https://example.org/feed/7.xml"; // the address Source 7 was made with
+  const again = "http://example.org/feed/7.xml/"; // the address Source 7 was made with, written another way
   const other = "https://z.example/f";
   const d = answerEach([again, other]);
   const list = startOpmlImport(app, p, request(feeds(["Seven", again], ["Z", other])));

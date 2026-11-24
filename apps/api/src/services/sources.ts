@@ -18,8 +18,9 @@ import { iconUrl } from "./icons.ts";
 import { createCollection } from "./collections.ts";
 import { deleteItemNow } from "./item-store.ts";
 import { readSecret, removeSecret, writeSecret } from "../secrets.ts";
-import { canonicalFeedKey, otherScheme, privateFeedKey } from "./feed-keys.ts";
-import { linkKey, urlKey } from "./url-key.ts";
+import { findSource, insertSource, privateFeedKey, reviveSource, sameFeedAddress, sourceIndex } from "./source-identity.ts";
+import type { SourceIndex } from "./source-identity.ts";
+import { linkKey } from "./url-key.ts";
 import { dropCandidate, holdCandidate, peekCandidate } from "./discovery-cache.ts";
 import type { HeldCandidate } from "./discovery-cache.ts";
 import { recordFollowed, recordOffered } from "./discovery-routes.ts";
@@ -132,7 +133,8 @@ type Presenting = { entry: DiscoveryEntry; count?: boolean };
 /** Found feeds held behind opaque tokens, each with whether this PURSS already follows it, or follows a source of the same name. */
 export function presentCandidates(app: App, p: Principal, drafts: Omit<HeldCandidate, "entry">[], how: Presenting = { entry: "paste" }) {
   const byName = followedByName(app, p);
-  const shown = drafts.map((c) => holdDraft(app, p, { ...c, entry: how.entry }, byName));
+  const known = sourceIndex(app, p.accountId, drafts.map((c) => c.feedUrl));
+  const shown = drafts.map((c) => holdDraft(app, p, { ...c, entry: how.entry }, byName, known));
   if (how.count !== false) recordOffered(app, how.entry, drafts.map((c) => c.route));
   return shown;
 }
@@ -219,19 +221,6 @@ function followedByName(app: App, p: Principal): Map<string, { id: string; title
 }
 
 /**
- * The followed source of this PURSS for a feed address: by the address written the same way up to what never changes which feed a
- * server sends (http or https, a trailing slash, tracking parameters; urlKey), or for a private source by its keyed hash of either scheme.
- */
-export function followedSource(app: App, p: Principal, feedUrl: string): { id: string } | undefined {
-  const other = otherScheme(feedUrl);
-  const keys = [privateFeedKey(app, p.accountId, feedUrl), other ? privateFeedKey(app, p.accountId, other) : null].filter((k): k is string => !!k);
-  return app.db.get<{ id: string }>(
-    `SELECT id FROM sources WHERE account_id = ? AND followed = 1 AND (feed_url = ? OR (feed_url IS NOT NULL AND purss_url_key(feed_url) = ?)
-       ${keys.length ? `OR feed_key IN (${keys.map(() => "?").join(", ")})` : ""}) ORDER BY created_at LIMIT 1`,
-    p.accountId, feedUrl, urlKey(feedUrl), ...keys);
-}
-
-/**
  * A followed source (under another address) whose newest posts are this feed's newest: most of the feed's newest posts are among the
  * source's, and most of the source's as many newest are among the feed's. A section's feed inside a site's whole feed, or a feed that
  * shares a few posts with another, is not the same feed. Compared by post address (linkKey: no www, scheme or tracking parameters).
@@ -259,9 +248,10 @@ const SAME_FEED_MIN = 3;
 const SAME_FEED_SHARE = 0.7;
 
 /** A found feed behind an opaque token, with whether this PURSS already follows it, or follows a source of the same name. */
-function holdDraft(app: App, p: Principal, c: HeldCandidate, byName: Map<string, { id: string; title: string }>) {
+function holdDraft(app: App, p: Principal, c: HeldCandidate, byName: Map<string, { id: string; title: string }>, known: SourceIndex) {
   const token = newId("dsc");
-  const existing = followedSource(app, p, c.feedUrl);
+  const found = known.find(c.feedUrl);
+  const existing = found?.followed ? found : undefined;
   holdCandidate(token, p.accountId, c);
   const sameFeed = existing ? undefined : sameFeedSource(app, p, c.itemLinks);
   const same = existing || sameFeed ? undefined : byName.get(coreName(c.title));
@@ -281,18 +271,16 @@ function siteOrigin(url: string | null): string | null {
 export function followSource(app: App, p: Principal, input: z.input<typeof followSchema>): SourceDTO {
   const c = peekCandidate(input.token, p.accountId) as Candidate | null;
   if (!c) throw badRequest(server.api.shared.lookupExpired, "expired");
-  const existing = followedSource(app, p, c.feedUrl);
-  if (existing) return getSource(app, p, existing.id);
+  // The same feed written another way is the source the account has; one it unfollowed is taken up again (an unfollowed source keeps its items).
+  const known = findSource(app, p.accountId, c.feedUrl);
+  if (known?.followed) return getSource(app, p, known.id);
   const engineUser = app.db.get<{ id: string }>("SELECT id FROM engine_users WHERE account_id = ?", p.accountId);
   if (!engineUser) throw badRequest(server.api.shared.notConnectedYet, "engine_pending");
   // This installation's news comes from here, not from the engine (services/news.ts).
   const isNews = isNewsFeed(app, c.feedUrl);
   // A bridged source's address is a descriptor, not a link anyone holds, so it is never a private link.
   const isPrivate = !isNews && !c.feedUrl.startsWith("bridge:") && (input.markPrivate ?? !!c.privateWarning);
-  // An unfollowed source keeps its items. Following the same feed again takes that source up again; a second one
-  // would hold a second copy of everything, and the first copy could no longer be reached or cleaned up.
-  const former = isPrivate ? undefined : app.db.get<{ id: string; title: string }>(
-    `SELECT id, title FROM sources WHERE account_id = ? AND feed_url = ? AND followed = 0 AND kind <> 'manual' ${isNews ? "AND builtin = 'news'" : ""} ORDER BY created_at DESC LIMIT 1`, p.accountId, c.feedUrl);
+  const former = isPrivate ? undefined : known;
   const id = former?.id ?? newId("src");
   const title = input.title ?? former?.title ?? c.title;
   const fullText = input.fullText && fullTextAvailable({ kind: c.kind, is_private: isPrivate ? 1 : 0 });
@@ -307,28 +295,22 @@ export function followSource(app: App, p: Principal, input: z.input<typeof follo
       let collectionId = input.collectionId;
       if (!collectionId && input.newCollectionName) collectionId = createCollection(app, p, { name: input.newCollectionName, emoji: null, mode: "sources", sourceIds: [], query: null, view: "list" }).id;
       if (collectionId && !app.db.get("SELECT 1 FROM collections WHERE id = ? AND account_id = ? AND mode = 'sources'", collectionId, p.accountId)) throw notFound(server.api.shared.thatCollection);
+      const discovery = { route: c.route, entry: c.entry };
       if (former) {
-        // Followed again: what the feed already has is backlog again, not New, and the engine has yet to confirm this new subscription.
-        // (The posts stored the first time keep what they were; only what arrives now is the backlog of this follow.)
-        app.db.run(
-          `UPDATE sources SET followed = 1, kind = ?, title = ?, origin = ?, site_url = ?, hue = ?, full_text = ?, start_from = ?, paused = 0, engine_stream_id = NULL,
-             health = ?, health_text = ?, created_at = ?, backlog_settled_at = NULL, subscribed_at = NULL, via_gateway = ?,
-             discovery_route = ?, discovery_entry = ?, unfollowed_at = NULL WHERE id = ?`,
-          c.kind, title, c.origin, c.siteUrl, hueFor(title), fullText ? 1 : 0, startFrom, isNews ? "ok" : "pending", null, nowIso(), viaGateway ? 1 : 0, c.route, c.entry, id,
-        );
+        reviveSource(app, id, { kind: c.kind, title, origin: c.origin, siteUrl: c.siteUrl, hue: hueFor(title), fullText: !!fullText, startFrom, viaGateway, discovery });
       } else {
         // Private (secret-link) feed URLs never enter the database or job payloads; they go to the secrets directory.
-        app.db.run(
-          `INSERT INTO sources (id, account_id, kind, title, origin, site_url, feed_url, feed_key, is_private, hue, full_text, start_from, health, health_text, builtin, created_at, via_gateway, discovery_route, discovery_entry)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          id, p.accountId, isPrivate ? "private" : c.kind, title, c.origin, isPrivate ? siteOrigin(c.siteUrl) : c.siteUrl, isPrivate ? null : c.feedUrl, isPrivate ? privateFeedKey(app, p.accountId, c.feedUrl) : null, isPrivate ? 1 : 0, hueFor(title), fullText ? 1 : 0, startFrom,
-          isNews ? "ok" : "pending", null, isNews ? "news" : null, nowIso(), viaGateway ? 1 : 0, c.route, c.entry,
-        );
+        insertSource(app, {
+          id, accountId: p.accountId, kind: c.kind, title, origin: c.origin, hue: hueFor(title), fullText: !!fullText, startFrom, health: "pending", createdAt: nowIso(), viaGateway, discovery,
+          ...(isPrivate ? { siteUrl: siteOrigin(c.siteUrl), privateLink: c.feedUrl } : { siteUrl: c.siteUrl, feedUrl: c.feedUrl }),
+        });
         if (isPrivate) writeSecret(app.config.secretsDir, `source-urls/${id}`, c.feedUrl);
       }
       if (collectionId) app.db.run("INSERT INTO collection_sources (collection_id, source_id) VALUES (?, ?)", collectionId, id);
       recordFollowed(app, c.entry, c.route);
-      if (!isNews) enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: id, feedUrl: isPrivate ? `secret:source-urls/${id}` : c.feedUrl, title, ...(viaGateway ? { trim: true } : {}) }, { accountId: p.accountId, idempotencyKey: `subscribe:${id}` });
+      // A source taken up again keeps the address it has, so that the subscription, a retry and the engine all name the same one.
+      const subscribeAt = isPrivate ? `secret:source-urls/${id}` : former?.feedUrl ?? c.feedUrl;
+      if (!isNews) enqueue(app, "engine.subscribe", { engineUserId: engineUser.id, sourceId: id, feedUrl: subscribeAt, title, ...(viaGateway ? { trim: true } : {}) }, { accountId: p.accountId, idempotencyKey: `subscribe:${id}` });
     });
   } catch (err) {
     // The link file was written inside the transaction; a source that was not made has no business keeping it (deletion lists only existing sources' files).
@@ -490,8 +472,7 @@ export async function setSourcePrivacy(app: App, p: Principal, id: string, makeP
       throw badRequest(server.api.sources.stillSettingUp, "busy");
     }
     const result = await find(link).catch(() => null);
-    const key = canonicalFeedKey(link);
-    const same = result?.ok ? result.candidates.find((c) => { try { return canonicalFeedKey(c.feedUrl) === key; } catch { return false; } }) : undefined;
+    const same = result?.ok ? result.candidates.find((c) => sameFeedAddress(c.feedUrl, link)) : undefined;
     if (!same) throw badRequest(server.api.sources.feedUnreachable, "unreachable");
     // The source may have been changed or unfollowed while the feed was looked up.
     const changed = app.db.tx(() => {

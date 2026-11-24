@@ -106,6 +106,14 @@ addresses, not GUIDs.
   one and the account already has history, the batch's entries go to the reconciliation queue
   (`reconciliation_queue`, one open row per entry) instead of becoming items, and the new identity waits as
   `pending_engine_identity`.
+- **A source** is the one an address names, whichever road leads there: following, following again, the
+  OPML preview and import, and an archive import all ask `apps/api/src/services/source-identity.ts`. A public
+  feed is the same feed when its address is the same up to `http` or `https`, a trailing slash, the host's case
+  and tracking parameters (`urlKey`); a bridged source is its descriptor, which a list also names by its page;
+  a private source, which has no address in the database, is its keyed hash under either scheme while it is
+  followed. An archive carries no private link, so it finds a private source by its title. A source that was
+  unfollowed is taken up again, not followed as a second one that would hold a second copy of every item; this
+  installation's own news is a built-in source that has no engine subscription.
 - **The Review page** lists the queue (`apps/api/src/services/reconcile.ts`); it calls the entries incoming items. Each entry suggests *match*
   (the only item of that source with the same link), *new* (nothing matches) or *review* (several items share
   the link). The person decides one entry at a time (match it to an item, add it as a new item, or dismiss

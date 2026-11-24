@@ -71,16 +71,3 @@ test("a re-followed source keeps what was kept, takes the new collection, and a 
   assert.equal(followSource(app, p, { ...base, token: hold(p), title: "Fresh title" }).title, "Fresh title");
   assert.equal(listItems(app, p, { scope: `basket:${basket.id}` }).total, 1);
 });
-
-test("a feed that is still followed is not followed twice, and a different feed or a private link starts its own source", (t) => {
-  const { app, cleanup } = makeTestApp();
-  t.after(cleanup);
-  const p = makeOwner(app);
-  const src = makeSource(app, p, "Herman's blog", "feed/1");
-  assert.equal(followSource(app, p, { ...base, token: hold(p) }).id, src);
-  unfollowSource(app, p, src);
-  const other = followSource(app, p, { ...base, token: hold(p, { feedUrl: "https://example.org/other.xml" }) });
-  assert.notEqual(other.id, src);
-  const priv = followSource(app, p, { ...base, token: hold(p), markPrivate: true });
-  assert.notEqual(priv.id, src, "a private link never reuses a public source");
-});

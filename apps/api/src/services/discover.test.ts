@@ -175,7 +175,7 @@ test("a reader's unfollowed and privately followed feeds don't come back as sugg
   const gone = add(b.app, reader, "b");
   b.app.db.run("UPDATE sources SET followed = 0 WHERE id = ?", gone);
   // A private source: its address is a secret, only a keyed hash of it is in the database.
-  const { privateFeedKey } = await import("./feed-keys.ts");
+  const { privateFeedKey } = await import("./source-identity.ts");
   const secret = add(b.app, reader, "c-private", { isPrivate: true });
   b.app.db.run("UPDATE sources SET feed_key = ? WHERE id = ?", privateFeedKey(b.app, reader.accountId, "https://example.org/c.xml"), secret);
   assert.deepEqual((await get(b, reader)).json.suggestions.map((s) => s.key), ["example.org/d.xml"]);

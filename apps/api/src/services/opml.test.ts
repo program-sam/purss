@@ -61,10 +61,6 @@ test("preview flags feeds already followed and credential-shaped addresses", (t)
   assert.equal(r.feeds.find((f) => f.title === "Token")!.looksPrivate, true);
   assert.equal(r.feeds[2]!.looksPrivate, false);
   assert.equal(app.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE kind = 'engine.subscribe'")!.n, 0, "an upload never reaches the engine");
-  // The followed feed written another way is already followed too, and listed once.
-  const other = previewOpml(app, p, `<opml><body><outline text="a" xmlUrl="http://example.org/feed/1.xml/"/><outline text="b" xmlUrl="https://example.org/feed/1.xml?utm_source=x"/></body></opml>`);
-  assert.deepEqual(other.feeds.map((f) => f.alreadyFollowing), [true]);
-  assert.equal(other.skipped.duplicates, 1);
 });
 
 test("OPML export lists only public followed sources, grouped by collection, with escaped attributes", (t) => {

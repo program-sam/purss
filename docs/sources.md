@@ -40,9 +40,13 @@ syncs flow is in [Architecture](architecture.md); the code is in
    hour (5,000 at most); a restart forgets them. A feed address that may carry a secret never
    reaches the database before the person decides how to follow it.
 3. **Follow.** The chosen candidate becomes a source row and an `engine.subscribe` job in one
-   transaction. A feed already followed is recognised first: by its address up to what never changes
-   which feed a server sends (`http` or `https`, a trailing slash, tracking parameters: `urlKey`), or for
-   a private source by its keyed hash under either scheme; following it again opens that source. A
+   transaction. A feed already followed is recognised first (`services/source-identity.ts`, which
+   following, the OPML preview and import, and an archive import all ask): by its address up to what never
+   changes which feed a server sends (`http` or `https`, a trailing slash, the host's case, tracking
+   parameters: `urlKey`), or for a private source by its keyed hash under either scheme; following it
+   again opens that source. A feed that was unfollowed is recognised the same way, and following it
+   takes that source up again, with the items it kept, instead of making a second one that would hold a
+   second copy of every post. A
    candidate at another address whose newest posts are a followed source's (at least 3 and 70% of its
    newest 10 among that source's posts, and as many of the source's newest among the candidate's,
    compared by post address without `www.` or tracking parameters) is shown as the same posts under
