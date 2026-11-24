@@ -133,7 +133,7 @@ type Presenting = { entry: DiscoveryEntry; count?: boolean };
 /** Found feeds held behind opaque tokens, each with whether this PURSS already follows it, or follows a source of the same name. */
 export function presentCandidates(app: App, p: Principal, drafts: Omit<HeldCandidate, "entry">[], how: Presenting = { entry: "paste" }) {
   const byName = followedByName(app, p);
-  const known = sourceIndex(app, p.accountId);
+  const known = sourceIndex(app, p.accountId, drafts.map((c) => c.feedUrl));
   const shown = drafts.map((c) => holdDraft(app, p, { ...c, entry: how.entry }, byName, known));
   if (how.count !== false) recordOffered(app, how.entry, drafts.map((c) => c.route));
   return shown;

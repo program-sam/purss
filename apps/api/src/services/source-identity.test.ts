@@ -9,6 +9,7 @@ import { holdCandidate } from "./discovery-cache.ts";
 import { getOpmlImport, runOpmlImports, startOpmlImport } from "./opml-import.ts";
 import { previewOpml } from "./opml.ts";
 import { applyImport, stageImport, streamExport } from "./portability.ts";
+import { findSource, sourceIndex } from "./source-identity.ts";
 import { followSource, presentCandidates, retrySource, unfollowSource } from "./sources.ts";
 import { applySyncBatch } from "./sync.ts";
 import { newsUrls } from "./news-address.ts";
@@ -150,6 +151,32 @@ for (const followed of [true, false]) {
     }
   }
 }
+test("asking about one address reads only the sources that could answer, and the answer is the whole index's", (t) => {
+  const { app, cleanup } = makeTestApp();
+  t.after(cleanup);
+  const p = makeOwner(app);
+  const descriptor = "bridge:telegram/durov";
+  const bridged = followSource(app, p, { ...base, token: hold(p, descriptor, { siteUrl: "https://t.me/durov", route: "bridge:telegram" }) }).id;
+  const priv = followSource(app, p, { ...base, token: hold(p, SECRET, SECRET_NOTE) }).id;
+  const plain = followSource(app, p, { ...base, token: hold(p, STORED) }).id;
+  const old = makeSource(app, p, "Old", "feed/old");
+  app.db.run("UPDATE sources SET feed_url = 'https://old.example/feed' WHERE id = ?", old);
+  unfollowSource(app, p, old);
+  const odd = makeSource(app, p, "Odd", "feed/odd");
+  app.db.run("UPDATE sources SET feed_url = 'gopher://old.example/feed' WHERE id = ?", odd); // an address no key can be made of is found by its own spelling only
+  for (let i = 0; i < 20; i++) app.db.run("UPDATE sources SET feed_url = ? WHERE id = ?", `https://other${i}.example/feed`, makeSource(app, p, `Other ${i}`, `feed/other${i}`));
+  const addresses = [
+    descriptor, "https://t.me/durov", "https://t.me/durov/", "https://t.me/other", SECRET, `${SECRET}#x`, SECRET.replace("https:", "http:"), `${SECRET}x`,
+    "gopher://old.example/feed", STORED, "http://harbour.example/feed?utm_source=x", "https://www.harbour.example/feed/", "https://old.example/feed/", "http://OLD.example/feed", "https://other7.example/feed", "https://nowhere.example/",
+  ];
+  const whole = sourceIndex(app, p.accountId);
+  for (const address of addresses) {
+    assert.deepEqual(findSource(app, p.accountId, address), whole.find(address), address);
+    assert.deepEqual(sourceIndex(app, p.accountId, addresses).find(address), whole.find(address), address);
+  }
+  assert.deepEqual([descriptor, SECRET, STORED, "https://old.example/feed", "gopher://old.example/feed"].map((address) => whole.find(address)?.id), [bridged, priv, plain, old, odd]);
+});
+
 test("a feed written in two spellings in one list or one archive is one source", async (t) => {
   const { app, cleanup } = makeTestApp();
   t.after(cleanup);

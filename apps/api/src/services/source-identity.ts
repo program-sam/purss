@@ -135,7 +135,7 @@ export function privateFeedKey(app: App, accountId: string, feedUrl: string): st
 /** A source an address is, and what it was when it was found. `feedUrl` is the address the source keeps, whatever way the asked address was written: it is the one the engine is subscribed at. */
 export type SourceMatch = { id: string; title: string; followed: boolean; feedUrl: string | null };
 
-/** One account's sources by what they answer to, so many addresses can be asked of one pass over the rows (a list of thousands of feeds). */
+/** The sources of one account by what they answer to, so that many addresses can be asked of one pass over the rows. */
 export type SourceIndex = {
   /**
    * The source of this address: the followed one (the oldest, if several), else the unfollowed one that was followed last. The
@@ -162,12 +162,44 @@ function storedKeys(s: { feed_url: string | null; feed_key: string | null; follo
   return found;
 }
 
-export function sourceIndex(app: App, accountId: string): SourceIndex {
+/** What an address answers to: the same spelling, the same address without what never changes the feed, and a private link's keyed hash under either scheme. */
+function askedKeys(app: App, accountId: string, address: string): { exact: string; address: string | null; hashes: string[] } {
+  const hashes = parseBridgeDescriptor(address) ? [] : [address, otherScheme(address)].flatMap((form) => {
+    const hashed = form ? privateFeedKey(app, accountId, form) : null;
+    return hashed ? [hashed] : [];
+  });
+  return { exact: address, address: urlKey(address), hashes };
+}
+
+/**
+ * The index of the account's sources. With `near`, only the sources that could answer to those addresses are read (SQLite compares
+ * the stored address with each spelling and with its key, and takes the bridged sources, which a list names by their page), so one
+ * lookup costs a scan of the account's rows, not building an index of them: a list of thousands of feeds asks one at a time. Without
+ * it, every source is read, for a list asked about all at once.
+ */
+export function sourceIndex(app: App, accountId: string, near?: readonly string[]): SourceIndex {
   // Keys the sources were made without (before keys existed, or with a key that was lost) are made first, so they are in the rows read next.
   keyFor(app);
+  const params: string[] = [];
+  const anyOf = (column: string, values: string[]): string => {
+    if (!values.length) return "0";
+    params.push(...values);
+    return `${column} IN (${values.map(() => "?").join(", ")})`;
+  };
+  let narrowed = "";
+  if (near) {
+    const asked = near.map((address) => askedKeys(app, accountId, address));
+    const clauses = [
+      anyOf("feed_url", asked.map((a) => a.exact)),
+      anyOf("purss_url_key(feed_url)", asked.flatMap((a) => (a.address ? [a.address] : []))),
+      anyOf("feed_key", asked.flatMap((a) => a.hashes)),
+      "feed_url LIKE 'bridge:%'",
+    ];
+    narrowed = ` AND (${clauses.join(" OR ")})`;
+  }
   const byKey = new Map<string, IndexedSource[]>();
   app.db.all<{ id: string; title: string; followed: number; builtin: string | null; feed_url: string | null; feed_key: string | null }>(
-    "SELECT id, title, followed, builtin, feed_url, feed_key FROM sources WHERE account_id = ? AND (feed_url IS NOT NULL OR feed_key IS NOT NULL) ORDER BY created_at, id", accountId,
+    `SELECT id, title, followed, builtin, feed_url, feed_key FROM sources WHERE account_id = ? AND (feed_url IS NOT NULL OR feed_key IS NOT NULL)${narrowed} ORDER BY created_at, id`, accountId, ...params,
   ).forEach((s, order) => {
     const source: IndexedSource = { id: s.id, title: s.title, followed: s.followed === 1, feedUrl: s.feed_url, builtin: s.builtin, order };
     for (const key of storedKeys(s)) {
@@ -177,27 +209,20 @@ export function sourceIndex(app: App, accountId: string): SourceIndex {
   });
   return {
     find(address) {
-      const asked = [`exact:${address}`];
-      const key = urlKey(address);
-      if (key) asked.push(`address:${key}`);
-      if (!parseBridgeDescriptor(address)) {
-        for (const form of [address, otherScheme(address)]) {
-          const hashed = form ? privateFeedKey(app, accountId, form) : null;
-          if (hashed) asked.push(`private:${hashed}`);
-        }
-      }
-      const found = new Set(asked.flatMap((k) => byKey.get(k) ?? []));
+      const asked = askedKeys(app, accountId, address);
+      const keys = [`exact:${asked.exact}`, ...(asked.address ? [`address:${asked.address}`] : []), ...asked.hashes.map((hashed) => `private:${hashed}`)];
+      const found = new Set(keys.flatMap((k) => byKey.get(k) ?? []));
       const followed = [...found].filter((s) => s.followed).sort((a, b) => a.order - b.order)[0];
-      if (followed) return followed;
       const news = isNewsFeed(app, address);
-      return [...found].filter((s) => news ? s.builtin === "news" : true).sort((a, b) => b.order - a.order)[0];
+      const chosen = followed ?? [...found].filter((s) => news ? s.builtin === "news" : true).sort((a, b) => b.order - a.order)[0];
+      return chosen && { id: chosen.id, title: chosen.title, followed: chosen.followed, feedUrl: chosen.feedUrl };
     },
   };
 }
 
-/** The source of one address; to ask about many, `sourceIndex` reads the rows once. */
+/** The source of one address. */
 export function findSource(app: App, accountId: string, address: string): SourceMatch | undefined {
-  return sourceIndex(app, accountId).find(address);
+  return sourceIndex(app, accountId, [address]).find(address);
 }
 
 export type NewSource = {
