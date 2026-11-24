@@ -3,12 +3,13 @@ import "@purss/ui/tokens.css";
 import "@purss/ui/primitives.css";
 import "../lib/pages.css";
 import type { ConnectInfo } from "@purss/domain";
+import { randomToken, s256Challenge } from "@purss/domain/connect-protocol";
 import { OFFICIAL_PURSS_ORIGIN } from "@purss/domain/distribution";
 import { parsePurssAddress, startingServer, UNENCRYPTED_NOTE } from "@purss/domain/purss-address";
 import { PurssError, exchangeCode, fetchInfo, purssClient } from "../lib/api.ts";
 import type { Connection } from "../lib/api.ts";
 import { ext } from "../lib/browser.ts";
-import { challengeFor, cleanTypedCode, connectPageUrl, deviceNameFor, randomVerifier, readRedirect } from "../lib/connect.ts";
+import { cleanTypedCode, connectPageUrl, deviceNameFor, readRedirect } from "../lib/connect.ts";
 import { followColorScheme, h, show } from "../lib/dom.ts";
 import { forgetConnection, getConnection, getServer, getSettings, setBaskets, setConnection, setServer, setSettings } from "../lib/store.ts";
 
@@ -69,12 +70,12 @@ function connectForm(remembered: string | null): HTMLElement {
     try {
       const info = await fetchInfo(parsed.origin);
       await setServer(parsed.origin);
-      const verifier = randomVerifier();
-      const challenge = await challengeFor(verifier);
+      const verifier = randomToken(32);
+      const challenge = await s256Challenge(verifier);
       const deviceName = deviceNameFor(navigator.userAgent);
       if (mode === "redirect" && api.identity) {
         const redirectUri = api.identity.getRedirectURL();
-        const state = randomVerifier();
+        const state = randomToken(32);
         message(status, extension.options.connect.approve(parsed.unencrypted ? UNENCRYPTED_NOTE : null));
         let final: string | undefined;
         try {

@@ -1,14 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { extension } from "@purss/translations/extension";
-import { challengeFor, cleanTypedCode, connectPageUrl, deviceNameFor, randomVerifier, readRedirect } from "./connect.ts";
-
-test("the PKCE challenge is S256 of the verifier (RFC 7636 appendix B), and verifiers are fresh and well-formed", async () => {
-  assert.equal(await challengeFor("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"), "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
-  const a = randomVerifier();
-  assert.match(a, /^[A-Za-z0-9_-]{43}$/, "what the PURSS accepts");
-  assert.notEqual(a, randomVerifier());
-});
+import { cleanTypedCode, connectPageUrl, deviceNameFor, readRedirect } from "./connect.ts";
 
 test("the approval page address names the extension, the challenge and, for a redirect, where to return", () => {
   const typed = new URL(connectPageUrl("https://ws.example", { challenge: "C", deviceName: "Firefox on Linux" }));

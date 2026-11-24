@@ -7,23 +7,8 @@
  */
 
 import { extension } from "@purss/translations/extension";
+import { readConnectAnswer } from "@purss/domain/connect-protocol";
 import { appUrl } from "@purss/domain/paths";
-
-const b64url = (bytes: Uint8Array): string => {
-  let s = "";
-  for (const b of bytes) s += String.fromCharCode(b);
-  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-};
-
-/** 32 random bytes, base64url: a 43-character verifier (RFC 7636 section 4.1). */
-export function randomVerifier(): string {
-  return b64url(crypto.getRandomValues(new Uint8Array(32)));
-}
-
-/** BASE64URL(SHA-256(verifier)), the S256 challenge. */
-export async function challengeFor(verifier: string): Promise<string> {
-  return b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
-}
 
 /** The approval page's address. Leave out the redirect for the typed-code form. */
 export function connectPageUrl(origin: string, p: { challenge: string; deviceName: string; redirect?: { uri: string; state: string } }): string {
@@ -43,12 +28,14 @@ export function readRedirect(finalUrl: string, expected: { redirectUri: string; 
   let u: URL;
   try { u = new URL(finalUrl); } catch { return { ok: false, reason: "invalid", message: extension.connect.unexpectedAnswer }; }
   if (!finalUrl.startsWith(expected.redirectUri)) return { ok: false, reason: "invalid", message: extension.connect.unexpectedAnswer };
-  if (u.searchParams.get("state") !== expected.state || u.searchParams.get("iss") !== expected.origin) {
-    return { ok: false, reason: "mismatch", message: extension.connect.otherAttempt };
+  const answer = readConnectAnswer(u.searchParams, { state: expected.state, issuer: expected.origin });
+  switch (answer.kind) {
+    case "code": return { ok: true, code: answer.code };
+    case "declined": return { ok: false, reason: "declined", message: extension.connect.declined };
+    case "no-code": return { ok: false, reason: "invalid", message: extension.connect.noCode };
+    case "other-attempt":
+    case "other-purss": return { ok: false, reason: "mismatch", message: extension.connect.otherAttempt };
   }
-  if (u.searchParams.get("error") === "access_denied") return { ok: false, reason: "declined", message: extension.connect.declined };
-  const code = u.searchParams.get("code");
-  return code ? { ok: true, code } : { ok: false, reason: "invalid", message: extension.connect.noCode };
 }
 
 /** A typed code as your PURSS shows it ("abcd-efgh-ijkm"), forgiving spaces and case. */

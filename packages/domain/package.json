@@ -10,6 +10,7 @@
     "./distribution": "./src/distribution.ts",
     "./app-bundle": "./src/app-bundle.ts",
     "./paths": "./src/paths.ts",
+    "./connect-protocol": "./src/connect-protocol.ts",
     "./plans": "./src/plans.ts",
     "./initials": "./src/initials.ts",
     "./version": "./src/version.ts"

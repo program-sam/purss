@@ -1,4 +1,5 @@
 import { parsePurssAddress } from "@purss/domain";
+import { randomToken, readConnectAnswer, readProviderCode, s256Challenge } from "@purss/domain/connect-protocol";
 import { APP_PATH } from "@purss/domain/paths";
 import type { ConnectInfo } from "@purss/domain";
 import { app } from "@purss/translations/app";
@@ -52,13 +53,10 @@ export function providersOffered(info: ConnectInfo): { id: string; label: string
   return Array.isArray(list) ? list.filter((p) => p && typeof p.id === "string" && typeof p.label === "string" && typeof p.start === "string") : [];
 }
 
-const b64url = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-
 /** A PKCE verifier (32 random bytes) and its S256 challenge, and a state value (16 random bytes). */
-export async function pkce(random: (n: number) => Uint8Array = (n) => crypto.getRandomValues(new Uint8Array(n))): Promise<{ verifier: string; challenge: string; state: string }> {
-  const verifier = b64url(random(32));
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
-  return { verifier, challenge: b64url(digest), state: b64url(random(16)) };
+export async function pkce(random?: (n: number) => Uint8Array): Promise<{ verifier: string; challenge: string; state: string }> {
+  const verifier = randomToken(32, random);
+  return { verifier, challenge: await s256Challenge(verifier), state: randomToken(16, random) };
 }
 
 /** The approval page's address with everything it needs. */
@@ -92,14 +90,15 @@ export function readCallback(url: string, expected: { state: string; issuer: str
   // Read by hand: older WebViews parse addresses of custom schemes without a host (purss://connect has path "//connect").
   const [base, rest = ""] = url.split("#")[0]!.split(/\?(.*)/s);
   if (base !== REDIRECT_URI || !expected) return { kind: "ignored" };
-  const q = new URLSearchParams(rest);
-  if (q.get("state") !== expected.state) return { kind: "ignored" };
-  // PURSS names itself (RFC 9207 `iss`); an answer that doesn't, or names another, isn't taken.
-  if (q.get("iss") !== expected.issuer) return { kind: "error", message: t.differentPurss };
-  if (q.get("error") === "access_denied") return { kind: "declined" };
-  const code = q.get("code");
-  if (!code) return { kind: "error", message: t.noCode };
-  return { kind: "code", code };
+  const answer = readConnectAnswer(new URLSearchParams(rest), expected);
+  switch (answer.kind) {
+    case "code":
+    case "declined": return answer;
+    case "other-attempt": return { kind: "ignored" };
+    // PURSS names itself (RFC 9207 `iss`); an answer that doesn't, or names another, isn't taken.
+    case "other-purss": return { kind: "error", message: t.differentPurss };
+    case "no-code": return { kind: "error", message: t.noCode };
+  }
 }
 
 /**
@@ -111,10 +110,8 @@ export function readCallback(url: string, expected: { state: string; issuer: str
 export function readAppCode(url: string, kind: "link" | "confirm", expected: { state: string; issuer: string }): { kind: "code"; code: string } | { kind: "ignored" } {
   const [base, rest = ""] = url.split("#")[0]!.split(/\?(.*)/s);
   if (base !== REDIRECT_URI) return { kind: "ignored" };
-  const q = new URLSearchParams(rest);
-  const code = q.get(kind === "link" ? "link_code" : "confirm_code");
-  if (!code || q.get("state") !== expected.state || q.get("iss") !== expected.issuer) return { kind: "ignored" };
-  return { kind: "code", code };
+  const code = readProviderCode(new URLSearchParams(rest), expected, kind === "link" ? "link_code" : "confirm_code");
+  return code ? { kind: "code", code } : { kind: "ignored" };
 }
 
 /** The connection waiting for the browser's answer; kept in case the system stops the app meanwhile. */

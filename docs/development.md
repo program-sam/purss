@@ -68,7 +68,9 @@ start the API with `PURSS_PUBLIC_ORIGIN=http://localhost:5173` so its origin and
   in-process test hooks (`testAllowAddress`, `resolver`); no environment variable relaxes the
   address rules.
 - **The browser imports types only from `@purss/domain`** (`import type`); the domain package's
-  runtime uses Node modules and `zod`, which stay on the server.
+  runtime uses Node modules and `zod`, which stay on the server. Code the browser needs at runtime
+  (the address rule, paths, the version, the connect protocol) is a separate entry point that imports
+  neither (`@purss/domain/paths`, `@purss/domain/connect-protocol`, and the others in its `package.json`).
 - **The API is the only database writer.** Other processes go through its internal routes.
 - **Scoped queries.** Product queries filter by the principal's `account_id`.
 - **Messages people read** are plain language; errors are `{ error: { code, message } }`.
