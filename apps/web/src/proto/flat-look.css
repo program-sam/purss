@@ -1,0 +1,67 @@
+/* PROTOTYPE (VITE_PROTO_LOOK=on builds only): flat looks. html[data-look] = flat | tonal | line; absent = today's look. */
+
+/* ---------- Shared by all three: no gradients, inner highlights, text shadows or control shadows ---------- */
+:root[data-look]{--hi:transparent;--shadow:none}
+:root[data-look] .btn,:root[data-look] .rtile,:root[data-look] .bar,:root[data-look] .mbtn,:root[data-look] .panel-bar,:root[data-look] .p-acts .st-new,:root[data-look] .dangerb,:root[data-look] .mbtn[aria-pressed="true"]:has(.sw),:root[data-look] .bar-tools .ibtn:has(.ml),:root[data-look] .app[data-bp="xs"] .panel-bar.titled .ibtn:has(.ml){background:var(--surface);box-shadow:none;text-shadow:none}
+:root[data-look] .btn:hover,:root[data-look] .mbtn:hover{background:var(--hover)}
+:root[data-look] .btn:active{box-shadow:none}
+:root[data-look] .btn.ghost,:root[data-look] .mbtn.quietb{background:none}
+:root[data-look] .home-top .mbtn.quietb{background:var(--glass)}
+:root[data-look] .btn[disabled],:root[data-look] .btn.primary[disabled]{background:var(--surface-2)}
+:root[data-look] .sel,:root[data-look] .grow.sel:hover{background:var(--sel-bot)!important;box-shadow:none}
+:root[data-look] .rbtn.sel,:root[data-look] .mbtn[aria-expanded="true"],:root[data-look] .mbtn[aria-pressed="true"],:root[data-look] .chipf[aria-pressed="true"],:root[data-look] .p-acts .st,:root[data-look] .app[data-bp="xs"] .pager-tabs button[aria-pressed="true"]{background:var(--sel-bot);box-shadow:none}
+:root[data-look] .pal-i[aria-selected="true"]{background:var(--sel-bot)}
+:root[data-look] .dlg-h,:root[data-look] .mod-h,:root[data-look] .selbar,:root[data-look] .bcol-h,:root[data-look] .tbl th,:root[data-look] .thumb .hd,:root[data-look] .thumb.t-col>div>i:first-child,:root[data-look] .fx-sec-h{background:var(--mod-bot);box-shadow:none}
+:root[data-look] .btn.primary,:root[data-look] .mark,:root[data-look] .rail-add,:root[data-look] .cbx.on,:root[data-look] [aria-pressed="true"]>.gut .cbx,:root[data-look] [aria-pressed="true"] .cbx.lead,:root[data-look] [aria-checked="true"]>.cb,:root[data-look] input:checked+.cb,:root[data-look] .p-acts .mbtn.go{background:var(--accent);box-shadow:none;text-shadow:none}
+:root[data-look] .btn.primary:hover{background:var(--accent-bot)}
+:root[data-look] .seg button[aria-pressed="true"],:root[data-look] .sw-opt:has(input:checked){background:var(--surface);color:var(--accent-ink);box-shadow:0 0 0 1px var(--accent-line)}
+:root[data-look] .seg,:root[data-look] .swatches,:root[data-look] .pill-search,:root[data-look] .in,:root[data-look] .sel-in,:root[data-look] .meter,:root[data-look] .fx-bar{box-shadow:none}
+:root[data-look] kbd{box-shadow:none}
+:root[data-look] .av{background:hsl(var(--ah) 66% 90%);box-shadow:none}
+:root[data-look][data-theme="dark"] .av{background:hsl(var(--ah) 34% 26%)}
+:root[data-look] .stack .av{box-shadow:0 0 0 2px var(--ring,var(--mod-top))}
+:root[data-look] .sw-opt .c{background:hsl(var(--sh) 80% 46%);box-shadow:none}
+:root[data-look] .art{background:hsl(var(--ah) 56% 86%)}
+:root[data-look] .art.vid{background:hsl(var(--ah) 30% 26%)}
+:root[data-look] .art .play{box-shadow:none}
+:root[data-look] .homewash h1,:root[data-look] [data-theme="dark"] .homewash h1{text-shadow:none}
+:root[data-look] .homewash{background:var(--tint)}
+:root[data-look] .pagewash{display:none}
+:root[data-look] .auth-page{background:var(--tint)}
+:root[data-look] .dlg-f{box-shadow:none}
+:root[data-look] .mbtn .sw::after{box-shadow:none;border:1px solid var(--line-2)}
+:root[data-look] .skel{background:var(--line)}
+
+/* ---------- Flat · tonal: no outlines on controls; filled shapes and tinted bands carry the structure ---------- */
+:root[data-look="tonal"]:not([data-theme="dark"]){--side:hsl(var(--h) 30% 95%)}
+:root[data-look="tonal"] .btn:not(.ghost):not(.primary),:root[data-look="tonal"] .mbtn:not(.quietb),:root[data-look="tonal"] .rtile,:root[data-look="tonal"] .bar-tools .ibtn:has(.ml){background:var(--hover);border-color:transparent}
+:root[data-look="tonal"] .btn:not(.primary):hover,:root[data-look="tonal"] .mbtn:hover{background:var(--tint-2)}
+:root[data-look="tonal"] .btn.primary,:root[data-look="tonal"] .rail-add,:root[data-look="tonal"] .mark,:root[data-look="tonal"] .p-acts .mbtn.go{border-color:transparent}
+:root[data-look="tonal"] .sel,:root[data-look="tonal"] .grow.sel:hover{background:var(--tint-2)!important;border-color:transparent!important;color:var(--accent-ink)}
+:root[data-look="tonal"] .rbtn.sel,:root[data-look="tonal"] .mbtn[aria-expanded="true"],:root[data-look="tonal"] .mbtn[aria-pressed="true"],:root[data-look="tonal"] .chipf[aria-pressed="true"]{background:var(--tint-2);border-color:transparent;color:var(--accent-ink)}
+:root[data-look="tonal"] .mod,:root[data-look="tonal"] .list,:root[data-look="tonal"] .card,:root[data-look="tonal"] .bcard,:root[data-look="tonal"] .tblwrap,:root[data-look="tonal"] .fx-sec,:root[data-look="tonal"] .fx-pub,:root[data-look="tonal"] .fx-entry,:root[data-look="tonal"] .reminder,:root[data-look="tonal"] .bshelf,:root[data-look="tonal"] .empty.card-like{border-color:transparent;background:var(--surface-2)}
+:root[data-look="tonal"] .mod-h,:root[data-look="tonal"] .bcol-h,:root[data-look="tonal"] .fx-sec-h,:root[data-look="tonal"] .tbl th,:root[data-look="tonal"] .dlg-h{background:var(--tint);border-bottom-color:transparent}
+:root[data-look="tonal"] .bar,:root[data-look="tonal"] .panel-bar{background:var(--bg);border-bottom-color:transparent}
+:root[data-look="tonal"] .homewash{background:var(--tint-2)}
+:root[data-look="tonal"] .seg,:root[data-look="tonal"] .swatches{border-color:transparent}
+:root[data-look="tonal"] .seg button[aria-pressed="true"],:root[data-look="tonal"] .sw-opt:has(input:checked){box-shadow:none;background:var(--surface);color:var(--accent-ink)}
+:root[data-look="tonal"] .in,:root[data-look="tonal"] .sel-in,:root[data-look="tonal"] .pill-search{background:var(--hover);border-color:transparent}
+
+/* ---------- Flat · line: everything one surface; hairlines separate, colour only marks what is selected ---------- */
+:root[data-look="line"]{--side:var(--bg);--mod-top:var(--surface);--mod-bot:var(--surface);--sel-bot:var(--tint);--surface-2:var(--surface)}
+:root[data-look="line"] .homewash,:root[data-look="line"] .pagewash,:root[data-look="line"] .auth-page{background:var(--bg)}
+:root[data-look="line"] .homewash svg.quilt,:root[data-look="line"] .pagewash svg.quilt{display:none}
+:root[data-look="line"] .side{border-right:1px solid var(--line)}
+:root[data-look="line"] .btn,:root[data-look="line"] .mbtn,:root[data-look="line"] .rtile{border-color:var(--line)}
+:root[data-look="line"] .btn.primary{border-color:var(--accent)}
+:root[data-look="line"] .sel,:root[data-look="line"] .grow.sel:hover{background:var(--tint)!important;border-color:var(--accent-line)!important}
+:root[data-look="line"] .rbtn.sel,:root[data-look="line"] .chipf[aria-pressed="true"],:root[data-look="line"] .mbtn[aria-expanded="true"],:root[data-look="line"] .mbtn[aria-pressed="true"]{background:transparent;border-color:var(--accent-line);color:var(--accent-ink)}
+:root[data-look="line"] .mod-h,:root[data-look="line"] .bcol-h,:root[data-look="line"] .fx-sec-h,:root[data-look="line"] .tbl th,:root[data-look="line"] .dlg-h{border-bottom-color:var(--line)}
+:root[data-look="line"] .pop,:root[data-look="line"] .dlg,:root[data-look="line"] .pal,:root[data-look="line"] .auth-card,:root[data-look="line"] .tip,:root[data-look="line"] .toast,:root[data-look="line"] .sel-bar{box-shadow:0 0 0 1px var(--line-2)}
+:root[data-look="line"] .rtile{background:transparent}
+
+/* ---------- Switcher ---------- */
+.proto-look{position:fixed;z-index:200;left:50%;bottom:12px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:5px 6px 5px 12px;border-radius:999px;background:#111;color:#fff;font:700 0.8125rem/1 var(--font);box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.proto-look button{all:unset;cursor:pointer;width:26px;height:26px;display:grid;place-items:center;border-radius:50%;background:#333}
+.proto-look button:hover{background:#555}
+.proto-look span{min-width:150px;text-align:center}

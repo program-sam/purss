@@ -94,3 +94,6 @@ if (boot.screen) {
     </StrictMode>,
   );
 }
+
+// PROTOTYPE: flat-look switcher, only in builds made with VITE_PROTO_LOOK=on.
+if (import.meta.env.VITE_PROTO_LOOK === "on") void import("./proto/LookSwitcher.tsx").then((m) => m.mountLookSwitcher());
