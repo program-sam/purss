@@ -10,7 +10,6 @@ import { plural, shortDate } from "../../lib/format.ts";
 import { useNav } from "../../nav.ts";
 import { useColumns } from "../../pages/Home.tsx";
 import { useOverlays } from "../../state/overlays.tsx";
-import { setHints, useHints } from "../../state/ui-store.ts";
 import { useSavePreferences } from "../../state/prefs.ts";
 import { useToasts } from "../../state/toasts.tsx";
 import { usePurss } from "../../state/purss.tsx";
@@ -83,7 +82,7 @@ function Suggestions({ suggestions }: { suggestions: DiscoverSuggestion[] }) {
 /** The first box: sources that readers who follow what you follow also follow, "coming soon" until the co-follow graph holds any. */
 function ForYou() {
   const q = useQuery(suggestionsQuery);
-  const [shut, toggle] = useShut("for-you");
+  const [shut, toggle] = useShut();
   return (
     <section className={`mod${shut ? " shut" : ""}`} aria-labelledby="disc-for-you">
       <header className="mod-h">
@@ -138,12 +137,10 @@ function CatalogueRow({ s }: { s: CatalogueSource }) {
   );
 }
 
-/** Whether a Discovery box is folded shut. Boxes start folded; the ones opened are remembered in this browser. */
-function useShut(id: string): [boolean, () => void] {
-  const hints = useHints();
-  const key = `disc:${id}`;
-  const shut = !hints.opened.includes(key);
-  return [shut, () => setHints({ opened: shut ? [...hints.opened, key] : hints.opened.filter((x) => x !== key) })];
+/** Whether a Discovery box is folded shut. Every visit starts with all of them folded; opening one is not remembered. */
+function useShut(): [boolean, () => void] {
+  const [shut, setShut] = useState(true);
+  return [shut, () => setShut((x) => !x)];
 }
 
 /** A Discovery box's folding arrow, before its title like a collection's in the sidebar. */
@@ -164,7 +161,7 @@ function CategoryBox({ list }: { list: CatalogueCategoryList }) {
   const rows = list.sources.filter(open).slice(0, BOX_ROWS);
   const name = copy.categories[list.id];
   const go = () => nav.goPath(cataloguePath(list.id));
-  const [shut, toggle] = useShut(list.id);
+  const [shut, toggle] = useShut();
   return (
     <section className={`mod${shut ? " shut" : ""}`} aria-labelledby={`disc-${list.id}`}>
       <header className="mod-h">
