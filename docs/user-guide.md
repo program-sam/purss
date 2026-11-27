@@ -739,8 +739,7 @@ roughly by how many people follow them in feed readers, with some chance in the 
 and the sources in them come in a new order each time you open the page, and sources you already
 have are left out. Each source shows its icon (a podcast its artwork). **See all** opens the
 topic's full list. The arrow before a source shows its latest posts right there, and **Follow…**
-opens Add source. The boxes start folded: the arrow before a box's title opens it, and the boxes
-you opened stay open in this browser.
+opens Add source. The boxes start folded on every visit: the arrow before a box's title opens it.
 The hosted service chose these sources itself; it only lists English sources for now.
 
 To get suggestions, keep **Share my sources** on (Settings → General, or on the Discovery page).
