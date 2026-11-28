@@ -435,7 +435,8 @@ in that browser.
   50 or more items are New.
 
 Filter collections leave out items from collections you hide from Home. The boxes below list only
-Undecided items: an item you put aside or started is in the To read, To watch or To listen row instead. A new filter collection starts off Home. Items that match your
+Undecided items: an item you put aside or started is in the To read, To watch or To listen row instead. When a collection holds more
+Undecided items than its box shows, the foot of the box says how many more (*Open Research · 4 more*) and opens the collection. A new filter collection starts off Home. Items that match your
 [muted words](#muted-words) are left out of Home too.
 
 A visit starts when you come back after half an hour away. **To read** in the sidebar lists your

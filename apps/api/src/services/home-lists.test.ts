@@ -239,6 +239,23 @@ test("Home's one feed leaves out hidden collections and what was dealt with, and
   assert.deepEqual(feed(), [f]);
 });
 
+test("a Home box's list says how many items its box holds, less the muted ones; Home's one feed has no total", (t) => {
+  const { app, p, cleanup } = setup();
+  t.after(cleanup);
+  const { work, workBox } = twoCollections(app, p);
+  const items = [1, 2, 3, 4].map(() => addItem(app, p, work));
+  const muted = addItem(app, p, work, { title: "Football news" });
+  workflow(app, p, items[0]!, "finished");
+  const box = () => listItems(app, p, { scope: `collection:${workBox.id}`, filter: "undecided", mix: "home", limit: 2 });
+  assert.equal(box().total, 4, "the Undecided items, not the finished one");
+  assert.equal(listItems(app, p, { scope: "home", filter: "undecided", mix: "home", limit: 2 }).total, null);
+  setPreferences(app, p.accountId, { mutedWords: [{ text: "football", until: null }] });
+  assert.equal(box().total, 3, "the muted item is not counted");
+  assert.ok(!ids(box().items).includes(muted));
+  const next = box().nextCursor!;
+  assert.equal(listItems(app, p, { scope: `collection:${workBox.id}`, filter: "undecided", mix: "home", limit: 2, cursor: next }).total, null, "only the first page counts");
+});
+
 test("a Home list reads the items that existed when paging began: a backdated arrival waits for a refresh", (t) => {
   const { app, p, cleanup } = setup();
   t.after(cleanup);

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { CollectionDTO, SourceDTO } from "@purss/domain";
-import { boxScope, distribute, homeBoxes, isOtherBox, OTHER_BOX_ID } from "./home-boxes.ts";
+import { boxScope, distribute, homeBoxes, isOtherBox, moreInBoxes, OTHER_BOX_ID } from "./home-boxes.ts";
 
 const col = (id: string, position: number): CollectionDTO => ({ id, name: id.toUpperCase(), emoji: null, mode: "sources", view: "list", position, showOnHome: true, sourceIds: [], query: null, newCount: 0, itemCount: 0, aiFiltered: false });
 const src = (id: string, newCount: number, itemCount: number) => ({ id, newCount, itemCount }) as SourceDTO;
@@ -52,4 +52,14 @@ test("a box reserves only the items it shows: one it fetched beyond its rows, or
   assert.deepEqual(distribute([items("a", "b"), items("a", "c")], [0, 5]).map((l) => l.map((x) => x.id)), [[], ["a", "c"]]);
   // What a box skips because an earlier box has it does not count against its rows.
   assert.deepEqual(distribute([items("a", "b"), items("a", "b", "c", "d")], [5, 2]).map((l) => l.map((x) => x.id)), [["a", "b"], ["c", "d"]]);
+});
+
+test("a box offers more only for the items it holds beyond the ones Home shows, here or in an earlier box", () => {
+  const it = (id: string) => ({ id });
+  const lists = [[it("a"), it("b")], [it("a"), it("c"), it("d")], [it("e")]];
+  const shown = distribute(lists, [1, 1, 1]);
+  assert.deepEqual(shown.map((l) => l.map((x) => x.id)), [["a"], ["c"], ["e"]]);
+  assert.deepEqual(moreInBoxes(lists, shown, [2, 3, 1], [false, false, false]), [1, 1, 0], "one shown, one more; one shown and one in the first box; all shown");
+  assert.deepEqual(moreInBoxes(lists, shown, [1, null, null], [false, false, true]), [0, null, null], "no total: more when fetched beyond the rows or the list goes on");
+  assert.deepEqual(moreInBoxes([[it("e")]], [[it("e")]], [null], [false]), [0]);
 });

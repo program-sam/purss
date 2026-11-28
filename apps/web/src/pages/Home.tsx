@@ -17,7 +17,7 @@ import { useRowContextValue } from "../components/use-row-context.ts";
 import { NewDot } from "../components/item-bits.tsx";
 import { Names } from "../components/Names.tsx";
 import { workflowLabel } from "../lib/constants.ts";
-import { groupByDay, plural, timeAgo } from "../lib/format.ts";
+import { formatCount, groupByDay, plural, timeAgo } from "../lib/format.ts";
 import { itemDate, matchesFilter } from "../lib/items.ts";
 import { withOpenItem } from "../lib/open-hold.ts";
 import { useOpenHold } from "../state/open-hold.ts";
@@ -30,7 +30,7 @@ import { useRowCtx } from "../components/row-context.tsx";
 import { setHints, useHints } from "../state/ui-store.ts";
 import { usePurss } from "../state/purss.tsx";
 import { HomeBand, MutedLine, WelcomeRows } from "./WelcomeBack.tsx";
-import { DEDUPE_SLACK, boxScope, distribute, homeBoxes, isOtherBox } from "./home-boxes.ts";
+import { DEDUPE_SLACK, boxScope, distribute, homeBoxes, isOtherBox, moreInBoxes } from "./home-boxes.ts";
 import "./home.css";
 
 const t = app.pages.home;
@@ -75,14 +75,17 @@ function useBoxes(): CollectionDTO[] {
  * What each box lists: what it fetched, without the items an earlier box already shows (a source can be in several collections).
  * A box asks for a few more than `limit` to make up for that, and shows `rows[i]` of them (`limit` each unless given; none for a
  * collapsed box): only the items shown count against the boxes after it. A change made here (an item put aside, ignored or
- * finished) takes it out of its box at once, and the spare items fetched beyond the rows fill its place.
+ * finished) takes it out of its box at once, and the spare items fetched beyond the rows fill its place. `more`: how many items
+ * the box holds beyond those Home shows (see `moreInBoxes`).
  */
-function useBoxLists(boxes: readonly CollectionDTO[], filter: "undecided" | "new", limit: number, rows: readonly number[] = boxes.map(() => limit)): { items: ItemDTO[]; pending: boolean }[] {
+function useBoxLists(boxes: readonly CollectionDTO[], filter: "undecided" | "new", limit: number, rows: readonly number[] = boxes.map(() => limit)): { items: ItemDTO[]; pending: boolean; more: number | null }[] {
   const showMuted = useShowMuted();
   const results = useQueries({ queries: boxes.map((c) => itemPreviewQuery(homeParams(boxScope(c), filter, { showMuted }), limit + DEDUPE_SLACK)) });
   const held = useOpenHold();
-  const lists = distribute(results.map((r) => withOpenItem(r.data?.items ?? [], (i) => matchesFilter(i, filter), held)), rows);
-  return results.map((r, i) => ({ items: lists[i]!, pending: r.isPending }));
+  const fetched = results.map((r) => withOpenItem(r.data?.items ?? [], (i) => matchesFilter(i, filter), held));
+  const lists = distribute(fetched, rows);
+  const more = moreInBoxes(fetched, lists, results.map((r) => r.data?.total ?? null), results.map((r) => !!r.data?.nextCursor));
+  return results.map((r, i) => ({ items: lists[i]!, pending: r.isPending, more: more[i]! }));
 }
 
 /** The item requests Home makes for a layout, so the offline pack can save the same answers. Keep in step with the layouts below. */
@@ -96,7 +99,7 @@ export function homeRequests(layout: Preferences["homeLayout"], shown: readonly 
   }
 }
 
-function Module({ c, items, pending, onMenu }: { c: CollectionDTO; items: ItemDTO[]; pending: boolean; onMenu: (c: CollectionDTO, anchor: HTMLElement) => void }) {
+function Module({ c, items, pending, more, onMenu }: { c: CollectionDTO; items: ItemDTO[]; pending: boolean; more: number | null; onMenu: (c: CollectionDTO, anchor: HTMLElement) => void }) {
   const ws = usePurss();
   const nav = useNav();
   const hints = useHints();
@@ -121,7 +124,7 @@ function Module({ c, items, pending, onMenu }: { c: CollectionDTO; items: ItemDT
       {shut ? null : items.length ? (
         <>
           <ul className="mod-b">{items.map((it) => <ItemRow key={it.id} item={it} />)}</ul>
-          {other ? null : <button type="button" className="mod-all" onClick={() => nav.go({ t: "c", id: c.id })}>{t.open}<bdi>{c.name}</bdi>{c.itemCount ? <span> · {plural(c.itemCount, app.words.item)}</span> : null}<Icon name="chev" size="sm" /></button>}
+          {other || more === 0 ? null : <button type="button" className="mod-all" onClick={() => nav.go({ t: "c", id: c.id })}>{t.open}<bdi>{c.name}</bdi>{more ? <span> · {t.more(formatCount(more))}</span> : null}<Icon name="chev" size="sm" /></button>}
         </>
       ) : pending ? <div className="mod-empty"><span className="skel" style={{ height: 14, width: "60%" }} /></div> : (
         <div className="mod-empty">
@@ -207,7 +210,7 @@ function CollectionsLayout() {
   boxes.forEach((_, i) => buckets[i % n]!.push(i));
   return (
     <div className="mods">{buckets.map((b, col) => (
-      <div className="mcol" key={col}>{b.map((i) => <Module key={boxes[i]!.id} c={boxes[i]!} items={lists[i]!.items} pending={lists[i]!.pending} onMenu={menu} />)}</div>
+      <div className="mcol" key={col}>{b.map((i) => <Module key={boxes[i]!.id} c={boxes[i]!} items={lists[i]!.items} pending={lists[i]!.pending} more={lists[i]!.more} onMenu={menu} />)}</div>
     ))}</div>
   );
 }

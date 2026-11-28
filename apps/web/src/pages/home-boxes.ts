@@ -49,3 +49,18 @@ export function distribute<T extends { id: string }>(lists: readonly (readonly T
     return shown;
   });
 }
+
+/**
+ * How many more items each Home box holds than Home shows, from `distribute`'s input and output: the box's total (its list's
+ * `total`, null when not known) less the fetched items of it that this box or an earlier one shows. With no total, null when
+ * there are more (fetched beyond the rows, or `hasNext` says the list goes on) and 0 when not.
+ */
+export function moreInBoxes<T extends { id: string }>(lists: readonly (readonly T[])[], shown: readonly (readonly T[])[], totals: readonly (number | null)[], hasNext: readonly boolean[]): (number | null)[] {
+  const seen = new Set<string>();
+  return lists.map((list, i) => {
+    for (const it of shown[i] ?? []) seen.add(it.id);
+    const total = totals[i] ?? null;
+    if (total !== null) return Math.max(0, total - list.filter((it) => seen.has(it.id)).length);
+    return list.some((it) => !seen.has(it.id)) || hasNext[i] ? null : 0;
+  });
+}
