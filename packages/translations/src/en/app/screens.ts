@@ -205,6 +205,7 @@ export default {
   pages: {
     home: {
       open: "Open ",
+      more: (n: string) => `${n} more`,
       nothingNewYet: "All caught up! Nothing new yet. Open the collection for older or finished posts.",
       noSources: "No sources yet.",
       nothingHere: "Nothing here yet.",

@@ -281,9 +281,12 @@ function listPage(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>
   const nextCursor = rows.length > q.limit && last ? Buffer.from(JSON.stringify(runs ? [last.sort_key, last.id, snapshot, last.run] : [last.sort_key, last.id])).toString("base64url") : null;
   const kept = keptDisplays(app, p.accountId, page.filter((r) => r.basket_ids).map((r) => r.id));
   // A list narrowed by more than its scope and state has no total: counting it would read every item the narrowing looks at.
-  const narrowed = !!(q.type || q.length || q.without || q.capture || opts.homeVisible || home || muted);
+  // A Home box's list (a collection or "Other sources") is the exception: its total says how many more it holds than the box shows.
+  // Every source of a box is on Home, so the box holds what its scope holds, less what the muted words match; Home's one feed has no total.
+  const homeBox = home && (q.scope.startsWith("collection:") || q.scope === "loose");
+  const narrowed = !!(q.type || q.length || q.without || q.capture || opts.homeVisible || (home && !homeBox) || (muted && !homeBox));
   // Without a search or chips the total is added up from the PURSS's counts when that is the cheaper way (item-view.ts).
-  const total = q.cursor || narrowed ? null
+  let total = q.cursor || narrowed ? null
     : (q.q || q.source || q.exceptPrivate ? null : viewTotal(app, p, q))
       ?? app.db.get<{ n: number }>(`SELECT COUNT(*) AS n ${VIEW_FROM} WHERE ${where.join(" AND ")}`, ...params)!.n;
   const out: ListResult = { items: page.map((r) => toDTO(r, kept.get(r.id))), nextCursor, total };
@@ -293,6 +296,9 @@ function listPage(app: App, p: Principal, q: z.infer<typeof itemListQuerySchema>
     const { hidden, atLeast } = countMuted(app, muted, VIEW_FROM, where.join(" AND "), params, orderBy(sort, sort.key));
     out.mutedHidden = hidden;
     if (atLeast) out.mutedHiddenAtLeast = true;
+    // A box's total leaves the muted items out; counted in part, it is unknown.
+    if (total !== null) total = atLeast ? null : total - hidden;
+    out.total = total;
   }
   return out;
 }
